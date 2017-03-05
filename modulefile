@@ -1,0 +1,12 @@
+#%Module
+module-whatis Make "basics" package available in Python
+
+# Figure out where basics package is located, accounting
+# for the fact that this modulefile is probably symlink'd
+# into ~/privatemodules
+set root [file readlink $ModulesCurrentModulefile]
+set root [file dirname  $root]
+
+# Configure the environment
+setenv BASICS_ROOT $root
+prepend-path PYTHONPATH $root/basics

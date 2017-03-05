@@ -3,6 +3,9 @@
 import csv
 import collections
 
+#-----------------------------------------------------------------------
+# CSV Utilities
+#-----------------------------------------------------------------------
 class NamedTupleReader():
     ''' Like csv.DictReader, but returns namedtuples instead.
 
@@ -30,10 +33,11 @@ class NamedTupleReader():
     def __init__(self, filename, fieldnames=None, restval=None, dialect='excel', *arg, **kwargs):
         self.dialect = dialect
         self.restval = restval
+        self.rename  = kwargs.pop('rename', False) # Pop before passing to reader
         self.reader  = csv.reader(filename, dialect, *arg, **kwargs)
         if fieldnames is None:
             fieldnames = next(self.reader)
-        self.RowTuple = collections.namedtuple('RowTuple', fieldnames)
+        self.RowTuple = collections.namedtuple('RowTuple', fieldnames, rename=self.rename)
         self.line_num = self.reader.line_num
 
     @property
@@ -54,3 +58,19 @@ class NamedTupleReader():
         elif lr > lf:
             row = row[:lf-1] + [row[lf-1:]]
         return self.RowTuple._make(row)
+
+class excel_stripped(csv.excel):
+    ''' Like the default excel dialect, but skips leading whitespace '''
+    skipinitialspace = True
+csv.register_dialect("excel-strip", excel_stripped)
+
+class excel_tab_stripped(csv.excel_tab):
+    ''' Like the default excel_tab dialect, but skips leading whitespace '''
+    skipinitialspace = True
+csv.register_dialect("excel-tab-strip", excel_tab_stripped)
+
+class unix_stripped(csv.unix_dialect):
+    ''' Like the default unix dialect, but skips leading whitespace '''
+    skipinitialspace = True
+csv.register_dialect("unix-strip", unix_stripped)
+

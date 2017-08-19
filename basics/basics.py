@@ -1,7 +1,8 @@
 ''' Basic utilities for doing analysis in Python '''
 
-import csv
 import collections
+import contextlib
+import csv
 
 #-----------------------------------------------------------------------
 # CSV Utilities
@@ -74,3 +75,17 @@ class unix_stripped(csv.unix_dialect):
     skipinitialspace = True
 csv.register_dialect("unix-strip", unix_stripped)
 
+
+#-----------------------------------------------------------------------
+# Working Directory Management
+#-----------------------------------------------------------------------
+@contextlib.contextmanager
+def temp_workspace():
+    ''' Create/chdir to temp directory on entry; restore cwd and cleanup on exit. '''
+    home = os.getcwd()
+    with tempfile.TemporaryDirectory() as temp:
+        try:
+            os.chdir(temp)
+            yield
+        finally:
+            os.chdir(home)

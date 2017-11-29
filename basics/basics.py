@@ -3,8 +3,12 @@
 import collections
 import contextlib
 import csv
+import functools
+import logging
 import os
+import shutil
 import tempfile
+from pathlib import Path
 
 #-----------------------------------------------------------------------
 # CSV Utilities
@@ -33,11 +37,11 @@ class NamedTupleReader():
           - Like csv.DictReader, but unlike a basic csv.reader, the
             NamedTupleReader will skip blank rows.
     '''
-    def __init__(self, filename, fieldnames=None, restval=None, dialect='excel', *arg, **kwargs):
+    def __init__(self, filename, fieldnames=None, restval=None, dialect='excel', *args, **kwargs):
         self.dialect = dialect
         self.restval = restval
         self.rename  = kwargs.pop('rename', False) # Pop before passing to reader
-        self.reader  = csv.reader(filename, dialect, *arg, **kwargs)
+        self.reader  = csv.reader(filename, dialect, *args, **kwargs)
         if fieldnames is None:
             fieldnames = next(self.reader)
         self.RowTuple = collections.namedtuple('RowTuple', fieldnames, rename=self.rename)
@@ -79,15 +83,92 @@ csv.register_dialect("unix-strip", unix_stripped)
 
 
 #-----------------------------------------------------------------------
-# Working Directory Management
+# Temporary Directory Management
 #-----------------------------------------------------------------------
 @contextlib.contextmanager
 def temp_workspace():
     ''' Create/chdir to temp directory on entry; restore cwd and cleanup on exit. '''
-    home = os.getcwd()
+    home = Path.cwd()
     with tempfile.TemporaryDirectory() as temp:
         try:
             os.chdir(temp)
-            yield
+            yield Path(temp)
         finally:
             os.chdir(home)
+
+def tempdir(*args):
+    ''' Decorator to run a function in a clean temporary directory.
+
+    This decorator can be applied to a function when that function needs to run
+    in a temporary directory isolated from the rest of the filesystem. The
+    decorator creates a temporary directory, chdir's into it, calls the wrapped
+    function, and then deletes the temporary workspace after chdir'ing back to
+    the start location.
+
+    In some cases (e.g. debugging), immeadiately deleting the workspace is
+    undesirable. This can be disabled by passing the 'debug' or 'noclean'
+    string (actually, any argument will do) to the decorator:
+
+        @tempdir('debug')
+        def my_function():
+            ...etc.
+
+    When in debug mode, the temporary directory is created in the current
+    working directory and is not cleaned up after the function returns. The
+    directory is deterministically named based on the functons __qualname__.
+    If this test directory exists before the function is called (e.g. from a
+    previous debug run) it is deleted and re-created. Note that when running in
+    debug mode, race conditions and naming collisions are possible.
+
+    NOTE:
+        Implementation based on https://stackoverflow.com/questions/3931627
+
+    '''
+    def _tempdir(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if debug:
+                # Call from new subdirectory; no cleanup
+                home = Path.cwd()
+                temp = Path(f'DEBUG_{func.__qualname__}')
+                if temp.exists():
+                    shutil.rmtree(temp)
+                temp.mkdir()
+                try:
+                    os.chdir(temp)
+                    return func(*args, **kwargs)
+                finally:
+                    os.chdir(home)
+            else:
+                # Call from isolated workspae
+                with temp_workspace():
+                    return func(*args, **kwargs)
+        return wrapper
+
+    if len(args) == 1 and callable(args[0]):
+        debug = False
+        return _tempdir(args[0])
+    else:
+        debug = True
+        return _tempdir
+
+
+#-----------------------------------------------------------------------
+# Logging
+#-----------------------------------------------------------------------
+def nologging(func):
+    ''' Decorator to disable logging from a function or method '''
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            logging.disable(logging.ERROR)
+            return func(*args, **kwargs)
+        finally:
+            logging.disable(logging.NOTSET)
+    return wrapper
+
+
+#-----------------------------------------------------------------------
+# Testing
+#-----------------------------------------------------------------------
+#TODO: Subclass unittest.TestCase w/ asserts for comparing files/directories

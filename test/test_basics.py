@@ -2,6 +2,7 @@ import basics
 import os
 import test
 import unittest
+from pathlib import Path
 
 class TestNamedTupleReader(unittest.TestCase):
     """ Tests for NamedTupleReader """
@@ -74,10 +75,49 @@ class TestNamedTupleReader(unittest.TestCase):
             self.assertEqual(reader.fieldnames, ['Jane', 'Doe', '_2'])
 
 class TestTempWorkspace(unittest.TestCase):
+    """ Tests for temp_workspace """
 
     def test_temp_workspace(self):
-        pass
+        """ Verify create/enter/exit/delete a temp directory """
+        start = Path.cwd()
+        with basics.temp_workspace() as temp:
+            self.assertTrue(temp.samefile(Path.cwd()))
+            self.assertFalse(temp.samefile(start))
+        self.assertTrue(start.samefile(Path.cwd()))
+        self.assertFalse(temp.exists())
 
+class TestTempDir(unittest.TestCase):
+    """ Test the @tempdir decorator """
+
+    def test_normal_mode(self):
+        """ Verify function is run in temp directory that is cleaned up """
+        @basics.tempdir
+        def where_am_i():
+            return Path.cwd()
+
+        start  = Path.cwd()
+        rundir = where_am_i()
+        self.assertNotEqual(str(rundir), str(start))
+        self.assertFalse(rundir.exists())
+
+    def test_debug_mode(self):
+        """ Test excution in local subdirectory w/o cleanup """
+        @basics.tempdir("debug")
+        def where_am_i():
+            return Path.cwd()
+
+        with basics.temp_workspace():
+            start  = Path.cwd()
+            rundir = where_am_i()
+            self.assertTrue(rundir.exists())
+            self.assertTrue(rundir.parent.samefile(start))
+
+            # Verify delete/recreate debug directory when function is re-run
+            canary = Path(rundir, 'canary.txt')
+            canary.write_text('now you see me...')
+            rundir2 = where_am_i()
+            self.assertEqual(str(rundir), str(rundir2))
+            self.assertFalse(canary.exists())
 
 if __name__ == '__main__':
     unittest.main()

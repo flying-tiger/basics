@@ -1,18 +1,13 @@
 import basics
-import env
 import os
+import test
 import unittest
 
-
-def testfile(name):
-    ''' Returns full path to a file in test/data directory '''
-    return os.path.join(env.test_root, 'data', name)
-
-
 class TestNamedTupleReader(unittest.TestCase):
+    """ Tests for NamedTupleReader """
 
     def test_simple_read(self):
-        with open(testfile('numbers.csv')) as csvfile:
+        with open(test.data_dir/'numbers.csv') as csvfile:
             next(csvfile) # Skip header
             fieldnames = ['a','b','c']
             reader = basics.NamedTupleReader(csvfile, fieldnames)
@@ -24,7 +19,7 @@ class TestNamedTupleReader(unittest.TestCase):
             self.assertEqual(reader.line_num, 1)
 
     def test_fieldnames_from_header(self):
-        with open(testfile('numbers.csv')) as csvfile:
+        with open(test.data_dir/'numbers.csv') as csvfile:
             reader = basics.NamedTupleReader(csvfile)
             self.assertEqual(reader.fieldnames, ['col1', 'col2', 'col3'])
             self.assertTrue(reader.line_num, 1)
@@ -35,7 +30,7 @@ class TestNamedTupleReader(unittest.TestCase):
             self.assertEqual(reader.line_num, 2)
 
     def test_too_many_fields(self):
-        with open(testfile('numbers.csv')) as csvfile:
+        with open(test.data_dir/'numbers.csv') as csvfile:
             next(csvfile) # Skip header
             fieldnames = ['col1','col2','col3','extra_field']
             reader = basics.NamedTupleReader(csvfile, fieldnames)
@@ -46,7 +41,7 @@ class TestNamedTupleReader(unittest.TestCase):
             self.assertEqual(row.extra_field, None)
 
     def test_too_few_fields(self):
-        with open(testfile('numbers.csv')) as csvfile:
+        with open(test.data_dir/'numbers.csv') as csvfile:
             next(csvfile) # Skip header
             fieldnames = ['col1','the_rest']
             reader = basics.NamedTupleReader(csvfile, fieldnames)
@@ -55,7 +50,7 @@ class TestNamedTupleReader(unittest.TestCase):
             self.assertEqual(row.the_rest, ['12', '13'])
 
     def test_additional_dialects(self):
-        with open(testfile('whitespace.csv')) as csvfile:
+        with open(test.data_dir/'whitespace.csv') as csvfile:
             reader = basics.NamedTupleReader(csvfile, dialect='unix-strip')
             row = next(reader)
             self.assertEqual(row.first_name, 'Jane')
@@ -63,21 +58,25 @@ class TestNamedTupleReader(unittest.TestCase):
             self.assertEqual(row.age,        '42')
 
     def test_rename_fields(self):
-
-        # Try using the first row of ada a columns headers. This fails
-        # because the value in the age column, '42', is not a valid python
-        # identifier and cannot be used as a tuple field name.
-        with open(testfile('whitespace.csv')) as csvfile:
+        with open(test.data_dir/'whitespace.csv') as csvfile:
+            # Try using the first row of ada a columns headers. This fails
+            # because the value in the age column, '42', is not a valid python
+            # identifier and cannot be used as a tuple field name.
             next(csvfile) # Skip header
             with self.assertRaises(ValueError):
                 basics.NamedTupleReader(csvfile, skipinitialspace=True)
 
-        # Try the same thing, but allow renaming. This will use '_2' as a
-        # field names instead of '42'.
-        with open(testfile('whitespace.csv')) as csvfile:
+        with open(test.data_dir/'whitespace.csv') as csvfile:
+            # Try the same thing, but allow renaming. This will use '_2' as a
+            # field names instead of '42'.
             next(csvfile) # Skip header
             reader = basics.NamedTupleReader(csvfile, rename=True, skipinitialspace=True)
             self.assertEqual(reader.fieldnames, ['Jane', 'Doe', '_2'])
+
+class TestTempWorkspace(unittest.TestCase):
+
+    def test_temp_workspace(self):
+        pass
 
 
 if __name__ == '__main__':
